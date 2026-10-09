@@ -3481,6 +3481,7 @@ git commit -m "feat(web): exam mode with wall-clock timer, flags, navigator, res
 
 **Files:**
 - Replace placeholder: `web/js/views/examResult.js`
+- Modify: `web/app.css` — scope the history colours so they do not bleed into the result summary: change the two rules `.pass { color: var(--ok); font-weight: 600; }` and `.fail { color: var(--bad); font-weight: 600; }` to `.history .pass { … }` and `.history .fail { … }` (same bodies). Without this, `<section class="result-summary pass">` turns the whole summary green/red and semibold.
 
 **Interfaces:**
 - Consumes: `PASS_PCT`, `formatClock`, `renderQuestionCard`, `renderFeedback`.
@@ -3555,7 +3556,7 @@ export async function render(container, [id]) {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add web/js/views/examResult.js
+git add web/js/views/examResult.js web/app.css
 git commit -m "feat(web): exam results with per-question review"
 ```
 
