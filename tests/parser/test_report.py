@@ -1,7 +1,9 @@
-from exam_sim.parser.blocks import RawOption, RawQuestion
+from exam_sim.parser.assemble import build_question
+from exam_sim.parser.blocks import RawOption, RawQuestion, parse_questions
 from exam_sim.parser.extract import Line
 from exam_sim.parser.model import ImageBlock, Option, Question, TextBlock, Vote
 from exam_sim.parser.report import build_report, format_report
+from tests.parser.helpers import lines
 
 
 def mk(number, options="ABCD", answer=("A",), pdf=None, votes=(), stem="Stem?", disputed=False, source="votes",
@@ -57,3 +59,14 @@ def test_report_lists_relabeled_option_letters():
     assert r.relabeled == [(224, "G", "C")]
     assert r.errors() == []
     assert "relabeled option letters: Q224 G→C" in format_report(r)
+
+
+def test_relabel_colliding_with_a_real_option_letter_is_an_error():
+    # Forward duplicate-letter typo: "D." printed twice. The source is ambiguous, so strict mode must fail.
+    raws = parse_questions(lines("Question #5", "S", "A. a", "B. b", "D. c-typo", "D. d-real", "Correct Answer: D",
+                                 "Community vote distribution", "D (89%)", "B (11%)"))
+    qs = [build_question(raw, lambda img: None) for raw in raws]
+    r = build_report(qs, raws)
+    assert r.relabeled == [(5, "D", "C")] and r.ambiguous_relabel == [5]
+    assert r.errors() == ["ambiguous option relabel (PDF letter is also a real option): [5]"]
+    assert "errors: ambiguous option relabel" in format_report(r)

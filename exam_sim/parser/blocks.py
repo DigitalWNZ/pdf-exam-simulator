@@ -59,19 +59,32 @@ def _letters(s: str, relabeled: dict[str, str] | None = None) -> list[str]:
 
 def _is_mislabeled_option(items: list[Item], i: int, letter: str, expected: str) -> bool:
     """An option line whose letter is *ahead* of the sequence (e.g. 'G.' where 'C.' is due) is a mislabeled
-    option — not wrapped text — when the expected letter never starts a line later in the same question.
-    (Real case: Q224 of pde_349.pdf prints option C, its key and its votes as 'G'.)"""
+    option — not wrapped text — when (a) the expected letter never starts a line later in the same question
+    and (b) the question's own 'Correct Answer' or a vote entry mentions that letter (corroboration).
+    (Real case: Q224 of pde_349.pdf prints option C, its key and its votes as 'G'.)
+    Uncorroborated letters — e.g. a wrapped '(N. Virginia)' line — stay ordinary text."""
     if letter <= expected:          # earlier letters are already used: wrapped text such as '…region B.'
         return False
+    seen_key = False
     for nxt in items[i + 1:]:
         if isinstance(nxt, Image):
             continue
-        if QUESTION_HEADER.match(nxt.text) or CORRECT_RE.match(nxt.text):
+        text = nxt.text
+        if QUESTION_HEADER.match(text):
             break
-        m = OPTION_RE.match(nxt.text)
-        if m and m.group(1) == expected:
-            return False
-    return True
+        if not seen_key:
+            m = CORRECT_RE.match(text)
+            if m:
+                seen_key = True
+                if letter in m.group(1):
+                    return True
+                continue
+            m = OPTION_RE.match(text)
+            if m and m.group(1) == expected:
+                return False
+        elif VOTE_LINE_RE.match(text) and any(letter in v.group(1) for v in VOTE_RE.finditer(text)):
+            return True
+    return False
 
 
 def parse_questions(items: list[Item]) -> list[RawQuestion]:

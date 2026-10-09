@@ -30,6 +30,7 @@ class Report:
     most_voted_mismatch: list[tuple[int, str, str]] = field(default_factory=list)    # (number, most_voted, key)
     disputed: list[tuple[int, str, str, str]] = field(default_factory=list)          # (number, key, pdf, source)
     relabeled: list[tuple[int, str, str]] = field(default_factory=list)              # (number, pdf_letter, letter)
+    ambiguous_relabel: list[int] = field(default_factory=list)                       # relabeled PDF letter is also a real option
     stray: list[tuple[int, int, str]] = field(default_factory=list)                  # (number, page, text)
     warnings: list[str] = field(default_factory=list)
 
@@ -41,6 +42,8 @@ class Report:
             out.append(f"questions with no answer: {self.no_answer}")
         if self.answer_not_in_options:
             out.append(f"answer letters missing from options: {self.answer_not_in_options}")
+        if self.ambiguous_relabel:
+            out.append(f"ambiguous option relabel (PDF letter is also a real option): {self.ambiguous_relabel}")
         return out
 
 
@@ -85,6 +88,8 @@ def build_report(questions: list[Question], raws: list[RawQuestion], warnings: l
                 r.stray.append((q.number, s.page, s.text if isinstance(s, Line) else "<image>"))
             for pdf_letter, letter in raw.relabeled.items():
                 r.relabeled.append((q.number, pdf_letter, letter))
+                if pdf_letter in letters and q.number not in r.ambiguous_relabel:
+                    r.ambiguous_relabel.append(q.number)
     return r
 
 

@@ -64,6 +64,22 @@ def test_mislabel_lookahead_stops_at_the_next_question():
     assert [o.letter for o in raws[1].options] == ["A", "B", "C"] and raws[1].relabeled == {}
 
 
+def test_uncorroborated_letter_ahead_of_sequence_is_text():
+    # AWS dumps wrap "(N. Virginia)" onto a new line; neither the key nor the votes mention N → wrapped text.
+    [raw] = q("Question #3", "S", "A. a", "B. b", "C. c", "D. deploy in us-east-1 (", "N. Virginia) and replicate",
+              "Correct Answer: D", "Community vote distribution", "D (100%)")
+    assert [o.letter for o in raw.options] == ["A", "B", "C", "D"]
+    assert [l.text for l in raw.options[3].parts] == ["deploy in us-east-1 (", "N. Virginia) and replicate"]
+    assert raw.relabeled == {} and raw.pdf_answer == ["D"]
+
+
+def test_mislabel_corroborated_by_votes_only():
+    [raw] = q("Question #4", "S", "A. a", "B. b", "G. c", "D. d", "Correct Answer: B",
+              "Community vote distribution", "G (60%)", "B (40%)")
+    assert [o.letter for o in raw.options] == ["A", "B", "C", "D"] and raw.relabeled == {"G": "C"}
+    assert raw.pdf_answer == ["B"] and [(v.letters, v.pct) for v in raw.votes] == [(["C"], 60), (["B"], 40)]
+
+
 def test_multi_answer_and_multiple_most_voted():
     [raw] = q("Question #10", "Stem (Choose three)", "A. a", "B. b", "Most Voted", "C. c", "D. d",
               "Most Voted", "E. e", "Most Voted", "F. f", "Correct Answer: BDE",
