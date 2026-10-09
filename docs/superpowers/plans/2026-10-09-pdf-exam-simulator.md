@@ -43,7 +43,7 @@
 | `web/js/config.js` | Constants (`PASS_PCT`, defaults, timings) |
 | `web/js/grading.js`, `shuffle.js`, `timer.js`, `progress.js` | Pure, DOM-free logic (node-tested) |
 | `web/js/dom.js`, `toast.js`, `keys.js`, `api.js`, `store.js`, `main.js` | DOM helper, toasts, keyboard, fetch, state + debounced save, router |
-| `web/js/components/questionCard.js`, `feedback.js`, `navigator.js` | Reusable UI pieces |
+| `web/js/components/questionCard.js`, `feedback.js`, `drill.js`, `navigator.js` | Reusable UI pieces (`drill.js` = shared pick → Check → feedback → Next loop for Practice and Review) |
 | `web/js/views/home.js`, `examSetup.js`, `exam.js`, `examResult.js`, `practiceSetup.js`, `practice.js`, `review.js` | Screens |
 | `tests/parser/*`, `tests/server/*`, `tests/web/*` | pytest + node tests |
 
@@ -2913,12 +2913,12 @@ git commit -m "feat(web): app shell, router, store with debounced saves, Home vi
 ### Task 14: Question card + feedback components, Practice setup and Practice view
 
 **Files:**
-- Create: `web/js/components/questionCard.js`, `web/js/components/feedback.js`
+- Create: `web/js/components/questionCard.js`, `web/js/components/feedback.js`, `web/js/components/drill.js`
 - Replace placeholders: `web/js/views/practiceSetup.js`, `web/js/views/practice.js`
 
 **Interfaces:**
 - Consumes: `el`, `imageUrl`, `isCorrect`, `store`/`update`, `startPractice`/`setPracticeIndex`/`checkPractice`, `bindKeys`.
-- Produces: `renderBlocks(blocks, bankId) -> Node[]`; `renderQuestionCard({question, bankId, order=null, picked=[], locked=false, reveal=null, onPick}) -> HTMLElement` (display letters follow `order`; radio for single, checkbox for multi; unchecked boxes disabled once `select_count` picks are made; `reveal` = key letters to colour); `togglePick({question, order, picked}, displayIndex) -> picked[] | null` (keyboard helper honouring the cap); `renderFeedback({question, picked}) -> HTMLElement`.
+- Produces: `renderBlocks(blocks, bankId) -> Node[]`; `renderQuestionCard({question, bankId, order=null, picked=[], locked=false, reveal=null, onPick}) -> HTMLElement` (display letters follow `order`; radio for single, checkbox for multi; unchecked boxes disabled once `select_count` picks are made; `reveal` = key letters to colour); `togglePick({question, order, picked}, displayIndex) -> picked[] | null` (keyboard helper honouring the cap); `renderFeedback({question, picked}) -> HTMLElement`. `mountDrill(container, opts) -> {unbind, draw, resetDraft}` — the shared pick → Check → feedback → Next loop (toolbar with progress label / jump-to / Home, question card, feedback, Prev/Check|Next/Skip, keyboard); `opts` = `{bankId, list(), index(), setIndex(i), checked(number), onCheck(number, picked, correct), label(s), toolbarExtras?(s), actionExtras?(s), empty()}`. Practice and Review are thin adapters over it.
 
 - [ ] **Step 1: Write the components**
 
@@ -3024,7 +3024,7 @@ export function renderFeedback({ question: q, picked }) {
 }
 ```
 
-- [ ] **Step 2: Write the Practice setup and Practice views**
+- [ ] **Step 2: Write the drill loop, the Practice setup and the Practice view**
 
 `web/js/views/practiceSetup.js`:
 ```js
@@ -3072,13 +3072,109 @@ export async function render(container) {
 }
 ```
 
-`web/js/views/practice.js`:
+`web/js/components/drill.js`:
 ```js
-import { renderFeedback } from '../components/feedback.js';
-import { renderQuestionCard, togglePick } from '../components/questionCard.js';
 import { el } from '../dom.js';
 import { isCorrect } from '../grading.js';
 import { bindKeys } from '../keys.js';
+import { renderFeedback } from './feedback.js';
+import { renderQuestionCard, togglePick } from './questionCard.js';
+
+/**
+ * Shared "pick → Check → feedback → Next" loop used by Practice and Review.
+ *
+ * opts:
+ *   bankId                      for image URLs
+ *   list()                      → current question list (re-read on every draw; Review's pool shrinks)
+ *   index()                     → current index into list() (clamped on read)
+ *   setIndex(i)                 record a new index
+ *   checked(number)             → picked[] if already checked in this run, else null
+ *   onCheck(number, picked, correct)   record a checked answer
+ *   label(s)                    → progress-label text
+ *   toolbarExtras(s)            → node(s) placed before "Home" (optional)
+ *   actionExtras(s)             → node(s) appended to the action row (optional)
+ *   empty()                     → node shown when list() is empty
+ *
+ * Returns { unbind, draw, resetDraft }.
+ */
+export function mountDrill(container, opts) {
+  let draft = [];                       // selection not yet checked
+
+  const state = () => {
+    const list = opts.list();
+    if (!list.length) return { list, q: null };
+    const index = Math.min(Math.max(opts.index(), 0), list.length - 1);
+    const q = list[index];
+    const checked = opts.checked(q.number);
+    const locked = Array.isArray(checked);
+    const picked = locked ? checked : draft;
+    return { list, index, q, locked, picked, canCheck: !locked && picked.length === q.select_count };
+  };
+
+  const go = (i) => {
+    const s = state();
+    if (!s.q || i < 0 || i >= s.list.length) return;
+    draft = [];
+    opts.setIndex(i);
+    draw();
+  };
+
+  const check = () => {
+    const s = state();
+    if (!s.q || !s.canCheck) return;
+    opts.onCheck(s.q.number, s.picked, isCorrect(s.q.answer, s.picked));
+    draft = [];
+    draw();
+  };
+
+  const draw = () => {
+    const s = state();
+    if (!s.q) { container.replaceChildren(opts.empty()); return; }
+    const jump = el('input', { type: 'number', class: 'jump', placeholder: '#', onKeydown: (e) => {
+      if (e.key !== 'Enter') return;
+      const i = s.list.findIndex((x) => x.number === Number(jump.value));
+      if (i >= 0) go(i);
+    } });
+    container.replaceChildren(
+      el('div', { class: 'toolbar' },
+        el('span', { class: 'progress-label' }, opts.label(s)),
+        el('span', { class: 'spacer' }),
+        el('label', { class: 'muted' }, 'Go to # ', jump),
+        opts.toolbarExtras ? opts.toolbarExtras(s) : null,
+        el('a', { class: 'btn link', href: '#/' }, 'Home')),
+      renderQuestionCard({ question: s.q, bankId: opts.bankId, picked: s.picked, locked: s.locked,
+        reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); } }),
+      s.locked ? renderFeedback({ question: s.q, picked: s.picked }) : null,
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn', disabled: s.index === 0, onClick: () => go(s.index - 1) }, '← Prev'),
+        s.locked
+          ? el('button', { class: 'btn primary', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Next →')
+          : el('button', { class: 'btn primary', disabled: !s.canCheck, onClick: check }, 'Check'),
+        s.locked ? null : el('button', { class: 'btn', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Skip →'),
+        el('span', { class: 'muted' }, 'Keys: 1-9 / A-F pick · Enter check/next · ← →'),
+        opts.actionExtras ? opts.actionExtras(s) : null));
+  };
+
+  draw();
+  const unbind = bindKeys({
+    onOption: (i) => {
+      const s = state();
+      if (!s.q || s.locked) return;
+      const next = togglePick({ question: s.q, picked: s.picked }, i);
+      if (next) { draft = next; draw(); }
+    },
+    onEnter: () => { const s = state(); if (!s.q) return; if (s.locked) go(s.index + 1); else check(); },
+    onPrev: () => { const s = state(); if (s.q) go(s.index - 1); },
+    onNext: () => { const s = state(); if (s.q) go(s.index + 1); },
+  });
+  return { unbind, draw, resetDraft: () => { draft = []; } };
+}
+```
+
+`web/js/views/practice.js`:
+```js
+import { mountDrill } from '../components/drill.js';
+import { el } from '../dom.js';
 import { checkPractice, setPracticeIndex } from '../progress.js';
 import { store, update } from '../store.js';
 
@@ -3089,69 +3185,18 @@ export async function render(container) {
     .filter((q) => q.number >= run.range[0] && q.number <= run.range[1])
     .sort((a, b) => a.number - b.number);
   if (!list.length) { location.hash = '#/practice/setup'; return; }
-  let draft = [];                       // selection not yet checked
 
-  const state = () => {
-    const prog = store.progress.practice;
-    const index = Math.min(Math.max(prog.index, 0), list.length - 1);
-    const q = list[index];
-    const checked = prog.picks[String(q.number)];
-    const locked = Array.isArray(checked);
-    const picked = locked ? checked : draft;
-    return { prog, index, q, locked, picked, canCheck: !locked && picked.length === q.select_count };
-  };
-  const go = (i) => {
-    if (i < 0 || i >= list.length) return;
-    draft = [];
-    update((p) => setPracticeIndex(p, i));
-    draw();
-  };
-  const check = () => {
-    const s = state();
-    if (!s.canCheck) return;
-    update((p) => checkPractice(p, s.q.number, s.picked, isCorrect(s.q.answer, s.picked), new Date().toISOString()));
-    draft = [];
-    draw();
-  };
-
-  const draw = () => {
-    const s = state();
-    const jump = el('input', { type: 'number', class: 'jump', placeholder: '#', min: list[0].number, max: list[list.length - 1].number,
-      onKeydown: (e) => {
-        if (e.key !== 'Enter') return;
-        const i = list.findIndex((x) => x.number === Number(jump.value));
-        if (i >= 0) go(i);
-      } });
-    container.replaceChildren(
-      el('div', { class: 'toolbar' },
-        el('span', { class: 'progress-label' }, `Q ${s.index + 1} of ${list.length} · range ${s.prog.range[0]}–${s.prog.range[1]}`),
-        el('span', { class: 'spacer' }),
-        el('label', { class: 'muted' }, 'Go to # ', jump),
-        el('a', { class: 'btn link', href: '#/' }, 'Home')),
-      renderQuestionCard({ question: s.q, bankId: store.bankId, picked: s.picked, locked: s.locked,
-        reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); } }),
-      s.locked ? renderFeedback({ question: s.q, picked: s.picked }) : null,
-      el('div', { class: 'actions' },
-        el('button', { class: 'btn', disabled: s.index === 0, onClick: () => go(s.index - 1) }, '← Prev'),
-        s.locked
-          ? el('button', { class: 'btn primary', disabled: s.index === list.length - 1, onClick: () => go(s.index + 1) }, 'Next →')
-          : el('button', { class: 'btn primary', disabled: !s.canCheck, onClick: check }, 'Check'),
-        s.locked ? null : el('button', { class: 'btn', disabled: s.index === list.length - 1, onClick: () => go(s.index + 1) }, 'Skip →'),
-        el('span', { class: 'muted' }, 'Keys: 1-9 / A-F pick · Enter check/next · ← →')));
-  };
-  draw();
-
-  return bindKeys({
-    onOption: (i) => {
-      const s = state();
-      if (s.locked) return;
-      const next = togglePick({ question: s.q, picked: s.picked }, i);
-      if (next) { draft = next; draw(); }
-    },
-    onEnter: () => { const s = state(); if (s.locked) go(s.index + 1); else check(); },
-    onPrev: () => go(state().index - 1),
-    onNext: () => go(state().index + 1),
+  const drill = mountDrill(container, {
+    bankId: store.bankId,
+    list: () => list,
+    index: () => store.progress.practice.index,
+    setIndex: (i) => update((p) => setPracticeIndex(p, i)),
+    checked: (number) => store.progress.practice.picks[String(number)] ?? null,
+    onCheck: (number, picked, correct) => update((p) => checkPractice(p, number, picked, correct, new Date().toISOString())),
+    label: (s) => `Q ${s.index + 1} of ${s.list.length} · range ${run.range[0]}–${run.range[1]}`,
+    empty: () => el('section', { class: 'card' }, 'No questions in this range.'),
   });
+  return drill.unbind;
 }
 ```
 
@@ -3170,7 +3215,7 @@ Run: `uv run serve --port 8010`. Then:
 
 ```bash
 git add web/js/components web/js/views/practiceSetup.js web/js/views/practice.js
-git commit -m "feat(web): question card, feedback panel, practice mode"
+git commit -m "feat(web): question card, feedback panel, shared drill loop, practice mode"
 ```
 
 ---
@@ -3181,99 +3226,53 @@ git commit -m "feat(web): question card, feedback panel, practice mode"
 - Replace placeholder: `web/js/views/review.js`
 
 **Interfaces:**
-- Consumes: `mistakePool`, `recordAttempt`, `removeFromMistakes`, `clearMistakes`, components from Task 14.
-- Behaviour: pool sorted by number, session-only checked state, "Remove from mistakes" keeps the index (next pooled question slides in), "Clear all" confirms, empty state, jump-to, keyboard.
+- Consumes: `mountDrill` (Task 14), `mistakePool`, `recordAttempt`, `removeFromMistakes`, `clearMistakes`.
+- Behaviour: pool sorted by number (re-read on every draw), session-only checked state, "Remove from mistakes" keeps the index (next pooled question slides in), "Clear all" confirms, empty state; jump-to and keyboard come from the drill.
 
 - [ ] **Step 1: Write the view**
 
 `web/js/views/review.js`:
 ```js
-import { renderFeedback } from '../components/feedback.js';
-import { renderQuestionCard, togglePick } from '../components/questionCard.js';
+import { mountDrill } from '../components/drill.js';
 import { el } from '../dom.js';
-import { isCorrect } from '../grading.js';
-import { bindKeys } from '../keys.js';
 import { clearMistakes, mistakePool, recordAttempt, removeFromMistakes } from '../progress.js';
 import { store, update } from '../store.js';
 
 export async function render(container) {
   let index = 0;
-  let draft = [];
   const session = new Map();            // number → picked (checked during this visit)
+  let drill;
 
-  const state = () => {
-    const list = mistakePool(store.progress).map((n) => store.byNumber.get(n)).filter(Boolean);
-    if (!list.length) return { list, q: null };
-    index = Math.min(Math.max(index, 0), list.length - 1);
-    const q = list[index];
-    const checked = session.get(q.number);
-    const locked = Array.isArray(checked);
-    const picked = locked ? checked : draft;
-    return { list, index, q, locked, picked, canCheck: !locked && picked.length === q.select_count };
+  const remove = (s) => {
+    update((p) => removeFromMistakes(p, s.q.number));
+    drill.resetDraft();
+    drill.draw();                       // index is kept; the next pooled question slides in
   };
-  const go = (i) => { const s = state(); if (!s.q || i < 0 || i >= s.list.length) return; index = i; draft = []; draw(); };
-  const check = () => {
-    const s = state();
-    if (!s.q || !s.canCheck) return;
-    session.set(s.q.number, s.picked);
-    update((p) => recordAttempt(p, s.q.number, s.picked, isCorrect(s.q.answer, s.picked), new Date().toISOString()));
-    draft = [];
-    draw();
-  };
-  const remove = () => { const s = state(); if (!s.q) return; update((p) => removeFromMistakes(p, s.q.number)); draft = []; draw(); };
-  const clearAll = () => {
-    const s = state();
-    if (!s.list.length || !confirm(`Remove all ${s.list.length} questions from the mistakes pool?`)) return;
+  const clearAll = (s) => {
+    if (!confirm(`Remove all ${s.list.length} questions from the mistakes pool?`)) return;
     update((p) => clearMistakes(p));
-    draw();
+    drill.draw();
   };
 
-  const draw = () => {
-    const s = state();
-    if (!s.q) {
-      container.replaceChildren(el('section', { class: 'card' },
-        el('h2', {}, 'Review mistakes'),
-        el('p', { class: 'muted' }, 'The pool is empty. Questions you answer wrong in Exam or Practice will appear here.'),
-        el('a', { class: 'btn link', href: '#/' }, 'Home')));
-      return;
-    }
-    const jump = el('input', { type: 'number', class: 'jump', placeholder: '#', onKeydown: (e) => {
-      if (e.key !== 'Enter') return;
-      const i = s.list.findIndex((x) => x.number === Number(jump.value));
-      if (i >= 0) go(i);
-    } });
-    container.replaceChildren(
-      el('div', { class: 'toolbar' },
-        el('span', { class: 'progress-label' }, `${s.list.length} mistake${s.list.length === 1 ? '' : 's'} · ${s.index + 1} of ${s.list.length}`),
-        el('span', { class: 'spacer' }),
-        el('label', { class: 'muted' }, 'Go to # ', jump),
-        el('button', { class: 'btn danger', onClick: clearAll }, 'Clear all'),
-        el('a', { class: 'btn link', href: '#/' }, 'Home')),
-      renderQuestionCard({ question: s.q, bankId: store.bankId, picked: s.picked, locked: s.locked,
-        reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); } }),
-      s.locked ? renderFeedback({ question: s.q, picked: s.picked }) : null,
-      el('div', { class: 'actions' },
-        el('button', { class: 'btn', disabled: s.index === 0, onClick: () => go(s.index - 1) }, '← Prev'),
-        s.locked
-          ? el('button', { class: 'btn primary', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Next →')
-          : el('button', { class: 'btn primary', disabled: !s.canCheck, onClick: check }, 'Check'),
-        s.locked ? null : el('button', { class: 'btn', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Skip →'),
-        el('span', { class: 'spacer' }),
-        el('button', { class: 'btn', onClick: remove }, 'Remove from mistakes')));
-  };
-  draw();
-
-  return bindKeys({
-    onOption: (i) => {
-      const s = state();
-      if (!s.q || s.locked) return;
-      const next = togglePick({ question: s.q, picked: s.picked }, i);
-      if (next) { draft = next; draw(); }
+  drill = mountDrill(container, {
+    bankId: store.bankId,
+    list: () => mistakePool(store.progress).map((n) => store.byNumber.get(n)).filter(Boolean),
+    index: () => index,
+    setIndex: (i) => { index = i; },
+    checked: (number) => session.get(number) ?? null,
+    onCheck: (number, picked, correct) => {
+      session.set(number, picked);
+      update((p) => recordAttempt(p, number, picked, correct, new Date().toISOString()));
     },
-    onEnter: () => { const s = state(); if (!s.q) return; if (s.locked) go(s.index + 1); else check(); },
-    onPrev: () => { const s = state(); if (s.q) go(s.index - 1); },
-    onNext: () => { const s = state(); if (s.q) go(s.index + 1); },
+    label: (s) => `${s.list.length} mistake${s.list.length === 1 ? '' : 's'} · ${s.index + 1} of ${s.list.length}`,
+    toolbarExtras: (s) => el('button', { class: 'btn danger', onClick: () => clearAll(s) }, 'Clear all'),
+    actionExtras: (s) => [el('span', { class: 'spacer' }), el('button', { class: 'btn', onClick: () => remove(s) }, 'Remove from mistakes')],
+    empty: () => el('section', { class: 'card' },
+      el('h2', {}, 'Review mistakes'),
+      el('p', { class: 'muted' }, 'The pool is empty. Questions you answer wrong in Exam or Practice will appear here.'),
+      el('a', { class: 'btn link', href: '#/' }, 'Home')),
   });
+  return drill.unbind;
 }
 ```
 
@@ -3642,5 +3641,5 @@ git commit -m "docs: README with setup, usage and smoke checklist"
 ## Plan self-review (done at authoring time)
 
 - **Spec coverage:** §3 layout → T1; §4.1 → T3; §4.2 → T4 (incl. multi-entry vote lines found in Q18/116/137); §4.3 → T5; §4.4 → T2/T6/T8; §4.5 → T7/T8; §5 → T9/T10; §6 → T12/T13 (store); §7 Home → T13, Exam setup/run → T16, Result → T17, Practice → T14, Review → T15, feedback panel → T14, keyboard → T13 (`keys.js`); §8 parser errors → T6/T7/T8, server errors → T9/T10, client errors → T13 (error card, sticky toast + backoff, `beforeunload`), expired exam on load → T16; §9 tests → T2–T12; §10 build order followed.
-- **Deviations from the spec, all intentional:** reducers live in `progress.js` (tested as `progress.test.js`) and `store.js` holds only state + saving, so the pure part is node-testable; `keys.js` is a separate module; images are written as `.png` after conversion by PyMuPDF, exactly as §4.1 says.
+- **Deviations from the spec, all intentional:** Practice and Review share `components/drill.js` instead of each owning a copy of the drill loop; reducers live in `progress.js` (tested as `progress.test.js`) and `store.js` holds only state + saving, so the pure part is node-testable; `keys.js` is a separate module; images are written as `.png` after conversion by PyMuPDF, exactly as §4.1 says.
 - **Type consistency checked:** `Vote(letters, pct)` everywhere; `RawQuestion(number, page, …)` positional order used in tests; `ImageWriter.writer_for(number)` returns the callable passed to `assemble_blocks`/`build_question`; `scoreExam` item shape `{number, order, picked, correct}` is what `finishExam` stores and `examResult` reads; `store.byNumber` is a `Map` keyed by `number`; all views export `async render(container, params)`.
