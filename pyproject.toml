@@ -31,3 +31,6 @@ packages = ["exam_sim"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+filterwarnings = [
+    "ignore:builtin type [sS]wig.* has no __module__ attribute:DeprecationWarning",
+]
