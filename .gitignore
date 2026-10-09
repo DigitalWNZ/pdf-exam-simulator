@@ -1,0 +1,8 @@
+source/
+banks/
+data/
+scratch/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
