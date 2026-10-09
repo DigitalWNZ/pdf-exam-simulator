@@ -125,6 +125,7 @@ A state machine over the item stream. States: `STEM → OPTIONS → ANSWER → V
 | `^Question #(\d+)$` | Close the current question (if any), start a new one. |
 | `^Topic (\d+)$` immediately after the header | Record topic. |
 | `^([A-Z])\.(\s+(.*))?$` **and** the letter equals the next expected letter (A, then B, …) | Start a new option. Letters out of sequence are treated as ordinary text. This prevents a wrapped stem line such as `…replica in region B.` from becoming an option. |
+| option-shaped line whose letter is *ahead* of the expected one, **and** the expected letter never starts a later line of the question, **and** the letter is corroborated by the question's `Correct Answer` or a vote entry | Mislabeled option (a typo in the PDF — Q224 prints its third option as `G.` with `Correct Answer: G`). Accept it as the expected letter and remap `pdf_answer`/votes accordingly; the report lists it under `relabeled option letters`. If the PDF letter also appears as a genuine option in the same question, the report flags `ambiguous option relabel` as an error (`--strict` fails). |
 | `^Most Voted$` (also accepted as a trailing ` Most Voted` suffix on an option line) | Tag the most recently opened option `most_voted = True`. |
 | `^Correct Answer:\s*([A-Z]+)$` | Record `pdf_answer` as a list of letters; leave `OPTIONS`. |
 | `^Community vote distribution$` | Enter `VOTES`. |
