@@ -48,3 +48,12 @@ def test_empty_report():
     r = build_report([], [])
     assert r.question_count == 0 and r.errors() == []
     assert "questions: 0" in format_report(r)
+    assert "relabeled option letters: none" in format_report(r)
+
+
+def test_report_lists_relabeled_option_letters():
+    raw = RawQuestion(number=224, page=183, options=[RawOption(l) for l in "ABCD"], relabeled={"G": "C"})
+    r = build_report([mk(224, answer=("C",))], [raw])
+    assert r.relabeled == [(224, "G", "C")]
+    assert r.errors() == []
+    assert "relabeled option letters: Q224 G→C" in format_report(r)

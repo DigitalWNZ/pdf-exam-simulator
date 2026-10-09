@@ -34,6 +34,7 @@ class RawQuestion:
     pdf_answer: list[str] | None = None
     votes: list[Vote] = field(default_factory=list)
     stray: list[Item] = field(default_factory=list)
+    relabeled: dict[str, str] = field(default_factory=dict)   # PDF option letter → assigned letter (e.g. {"G": "C"})
 
 
 def join_lines(lines: list[str]) -> str:
@@ -52,8 +53,25 @@ def join_lines(lines: list[str]) -> str:
     return out
 
 
-def _letters(s: str) -> list[str]:
-    return sorted(set(s))
+def _letters(s: str, relabeled: dict[str, str] | None = None) -> list[str]:
+    return sorted({(relabeled or {}).get(c, c) for c in s})
+
+
+def _is_mislabeled_option(items: list[Item], i: int, letter: str, expected: str) -> bool:
+    """An option line whose letter is *ahead* of the sequence (e.g. 'G.' where 'C.' is due) is a mislabeled
+    option — not wrapped text — when the expected letter never starts a line later in the same question.
+    (Real case: Q224 of pde_349.pdf prints option C, its key and its votes as 'G'.)"""
+    if letter <= expected:          # earlier letters are already used: wrapped text such as '…region B.'
+        return False
+    for nxt in items[i + 1:]:
+        if isinstance(nxt, Image):
+            continue
+        if QUESTION_HEADER.match(nxt.text) or CORRECT_RE.match(nxt.text):
+            break
+        m = OPTION_RE.match(nxt.text)
+        if m and m.group(1) == expected:
+            return False
+    return True
 
 
 def parse_questions(items: list[Item]) -> list[RawQuestion]:
@@ -62,7 +80,7 @@ def parse_questions(items: list[Item]) -> list[RawQuestion]:
     state = "stem"          # stem | options | answer | votes
     expected = "A"          # next option letter we will accept
 
-    for it in items:
+    for i, it in enumerate(items):
         if isinstance(it, Image):
             if cur is None:
                 continue
@@ -102,11 +120,14 @@ def parse_questions(items: list[Item]) -> list[RawQuestion]:
                 tagged = True
             m = CORRECT_RE.match(text)
             if m:
-                cur.pdf_answer = _letters(m.group(1))
+                cur.pdf_answer = _letters(m.group(1), cur.relabeled)
                 state = "answer"
                 continue
             m = OPTION_RE.match(text)
-            if m and m.group(1) == expected:
+            if m and (m.group(1) == expected
+                      or (state == "options" and _is_mislabeled_option(items, i, m.group(1), expected))):
+                if m.group(1) != expected:
+                    cur.relabeled[m.group(1)] = expected
                 opt = RawOption(letter=expected, most_voted=tagged)
                 if m.group(2):
                     opt.parts.append(Line(m.group(2).strip(), it.page))
@@ -129,7 +150,7 @@ def parse_questions(items: list[Item]) -> list[RawQuestion]:
 
         if VOTE_LINE_RE.match(text):     # state == "votes"; a line may hold several entries
             for m in VOTE_RE.finditer(text):
-                cur.votes.append(Vote(letters=_letters(m.group(1)), pct=int(m.group(2))))
+                cur.votes.append(Vote(letters=_letters(m.group(1), cur.relabeled), pct=int(m.group(2))))
         else:
             cur.stray.append(it)
 

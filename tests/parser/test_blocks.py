@@ -32,6 +32,36 @@ def test_out_of_sequence_letter_is_continuation_text():
               "C. Third", "D. Fourth", "Correct Answer: A")
     assert [o.letter for o in raw.options] == ["A", "B", "C", "D"]
     assert [l.text for l in raw.options[1].parts] == ["Second mentions", "D. not an option yet"]
+    assert raw.relabeled == {}
+
+
+def test_wrapped_line_starting_with_earlier_letter_is_text():
+    # Q236 in the real PDF: option C wraps as "...read replica in region" / "B. Scale up read workloads..."
+    [raw] = q("Question #236", "Stem", "A. a", "B. b", "C. replica in region", "B. Scale up read workloads.",
+              "D. d", "Correct Answer: C")
+    assert [o.letter for o in raw.options] == ["A", "B", "C", "D"]
+    assert [l.text for l in raw.options[2].parts] == ["replica in region", "B. Scale up read workloads."]
+    assert raw.relabeled == {}
+
+
+def test_mislabeled_option_letter_is_renumbered_and_key_remapped():
+    # Q224 in the real PDF: option C is printed as "G." and the key and votes say G as well.
+    [raw] = q("Question #224", "Stem", "A. a", "B. b", "wrapped b", "G. c", "wrapped c", "Most Voted", "D. d",
+              "Correct Answer: G", "Community vote distribution", "G (89%)", "B (11%)")
+    assert [o.letter for o in raw.options] == ["A", "B", "C", "D"]
+    assert [l.text for l in raw.options[1].parts] == ["b", "wrapped b"]
+    assert [l.text for l in raw.options[2].parts] == ["c", "wrapped c"]
+    assert [o.most_voted for o in raw.options] == [False, False, True, False]
+    assert raw.relabeled == {"G": "C"}
+    assert raw.pdf_answer == ["C"]
+    assert [(v.letters, v.pct) for v in raw.votes] == [(["C"], 89), (["B"], 11)]
+
+
+def test_mislabel_lookahead_stops_at_the_next_question():
+    raws = q("Question #1", "S", "A. a", "B. b", "G. c", "Correct Answer: G",
+             "Question #2", "S", "A. a", "B. b", "C. c", "Correct Answer: C")
+    assert [o.letter for o in raws[0].options] == ["A", "B", "C"] and raws[0].relabeled == {"G": "C"}
+    assert [o.letter for o in raws[1].options] == ["A", "B", "C"] and raws[1].relabeled == {}
 
 
 def test_multi_answer_and_multiple_most_voted():

@@ -29,6 +29,7 @@ class Report:
     choose_hint_mismatch: list[tuple[int, int, int]] = field(default_factory=list)   # (number, hint, select_count)
     most_voted_mismatch: list[tuple[int, str, str]] = field(default_factory=list)    # (number, most_voted, key)
     disputed: list[tuple[int, str, str, str]] = field(default_factory=list)          # (number, key, pdf, source)
+    relabeled: list[tuple[int, str, str]] = field(default_factory=list)              # (number, pdf_letter, letter)
     stray: list[tuple[int, int, str]] = field(default_factory=list)                  # (number, page, text)
     warnings: list[str] = field(default_factory=list)
 
@@ -82,6 +83,8 @@ def build_report(questions: list[Question], raws: list[RawQuestion], warnings: l
                 r.most_voted_mismatch.append((q.number, mv, "".join(q.answer)))
             for s in raw.stray:
                 r.stray.append((q.number, s.page, s.text if isinstance(s, Line) else "<image>"))
+            for pdf_letter, letter in raw.relabeled.items():
+                r.relabeled.append((q.number, pdf_letter, letter))
     return r
 
 
@@ -95,6 +98,7 @@ def format_report(r: Report) -> str:
         f"disputed ({len(r.disputed)}): " + (", ".join(f"Q{n} key={k} pdf={p} [{s}]" for n, k, p, s in r.disputed) or "none"),
         f"choose-N hint mismatches: {r.choose_hint_mismatch or 'none'}",
         f"'Most Voted' marker != key: {r.most_voted_mismatch or 'none'}",
+        "relabeled option letters: " + (", ".join(f"Q{n} {a}→{b}" for n, a, b in r.relabeled) or "none"),
         f"stray lines after 'Correct Answer' ({len(r.stray)}): "
         + ("; ".join(f"Q{n} p{p}: {t!r}" for n, p, t in r.stray[:20]) or "none"),
     ]
