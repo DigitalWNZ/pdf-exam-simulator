@@ -3135,7 +3135,8 @@ export function mountDrill(container, opts) {
       const i = s.list.findIndex((x) => x.number === Number(jump.value));
       if (i >= 0) go(i);
     } });
-    container.replaceChildren(
+    // replaceChildren() stringifies null ("null" text node) — filter optional nodes first.
+    container.replaceChildren(...[
       el('div', { class: 'toolbar' },
         el('span', { class: 'progress-label' }, opts.label(s)),
         el('span', { class: 'spacer' }),
@@ -3152,7 +3153,8 @@ export function mountDrill(container, opts) {
           : el('button', { class: 'btn primary', disabled: !s.canCheck, onClick: check }, 'Check'),
         s.locked ? null : el('button', { class: 'btn', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Skip →'),
         el('span', { class: 'muted' }, 'Keys: 1-9 / A-F pick · Enter check/next · ← →'),
-        opts.actionExtras ? opts.actionExtras(s) : null));
+        opts.actionExtras ? opts.actionExtras(s) : null),
+    ].filter(Boolean));
   };
 
   draw();
