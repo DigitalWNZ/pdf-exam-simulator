@@ -128,7 +128,7 @@ A state machine over the item stream. States: `STEM → OPTIONS → ANSWER → V
 | `^Most Voted$` (also accepted as a trailing ` Most Voted` suffix on an option line) | Tag the most recently opened option `most_voted = True`. |
 | `^Correct Answer:\s*([A-Z]+)$` | Record `pdf_answer` as a list of letters; leave `OPTIONS`. |
 | `^Community vote distribution$` | Enter `VOTES`. |
-| `^([A-Z]+)\s*\((\d+)%\)$` while in `VOTES` | Append `{letters, pct}`. |
+| one or more `([A-Z]+)\s*\((\d+)%\)` entries filling a line while in `VOTES` (the PDF packs minority entries together, e.g. `BCE (5%)CDE (3%)ACD (3%)` in Q18/Q116/Q137) | Append one `{letters, pct}` per entry, in order. |
 | `Image` item | Append an image block to the stem (state `STEM`) or to the open option (state `OPTIONS`). Images after `Correct Answer` are discarded with a warning. |
 | anything else | Append to the current text target (stem or open option). |
 
