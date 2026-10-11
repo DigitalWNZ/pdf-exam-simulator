@@ -1,6 +1,6 @@
 # PDF Exam Simulator
 
-Local, single-user exam simulator fed by ExamTopics-style PDF dumps. Three modes: **Exam** (timed, random draw, shuffled options, results at the end), **Practice** (range in PDF order, instant feedback), **Review mistakes** (re-drill everything you ever got wrong until you remove it).
+Local, single-user exam simulator fed by ExamTopics-style PDF dumps. Four modes: **Exam** (timed, random draw, shuffled options, results at the end), **Practice** (range in PDF order, instant feedback), **Review mistakes** (re-drill everything you ever got wrong until you remove it), **Future review** (re-drill the questions you ticked *Mark for future review* until you remove them).
 
 Design: `docs/superpowers/specs/2026-10-09-pdf-exam-simulator-design.md`.
 
@@ -32,7 +32,7 @@ uv run serve --port 8010 --no-browser
 
 Progress is stored per bank in `data/progress/<bank-id>.json` (plain JSON, atomic writes — back it up or edit it by hand). `source/`, `banks/` and `data/` are gitignored.
 
-Keyboard: `1–9` / `A–F` pick an option · `Enter` check / next · `←` `→` previous / next · `F` flag (exam).
+Keyboard: `1–9` / `A–F` pick an option · `Enter` check / next · `←` `→` previous / next · `F` flag (exam) · `M` mark for future review (practice / review).
 
 ## Tests
 
@@ -49,3 +49,7 @@ npm test                     # pure web logic via node --test
 4. Practice: range 1–12, Check gives instant feedback; Q9 shows an inline image; Q10 caps picks at 3.
 5. Review: pool lists the exam's wrong/unanswered questions; "Remove from mistakes" drops one; "Clear all" empties it.
 6. Add a second bank (`parse-pdf` with another `--id`) → the Home dropdown switches banks with separate progress.
+7. Practice: tick *Mark for future review* on Q3 → Home card shows "1 question marked" → Future review drills Q3 with Check/feedback → "Remove from list" → empty state.
+8. Open a past exam result, expand a question, tick the box → it appears in Future review.
+9. Reload the page → still marked; `data/progress/<bank>.json` contains `"marked": true`.
+10. Future review with 2+ questions: "Clear all" → confirm → empty state; `M` toggles the mark in Practice.

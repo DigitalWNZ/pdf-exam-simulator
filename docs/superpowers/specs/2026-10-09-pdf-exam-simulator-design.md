@@ -13,7 +13,7 @@ A local, single-user, browser-based exam simulator whose question bank is produc
 - Multi-user, authentication, cloud sync, mobile-first layout.
 - Explanations/discussion text (the PDF is the `without_discussion` edition).
 - Editing questions in the UI.
-- Persistent bookmarks (only an in-exam, session-scoped "flag").
+- ~~Persistent bookmarks~~ — superseded by `2026-10-11-future-review-list-design.md` (the in-exam "flag" stays session-scoped).
 
 ## 2. Decisions (from the grilling session)
 
