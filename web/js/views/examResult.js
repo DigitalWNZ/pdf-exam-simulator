@@ -1,5 +1,6 @@
 import { renderFeedback } from '../components/feedback.js';
 import { renderQuestionCard } from '../components/questionCard.js';
+import { renderMarkToggle } from '../components/markToggle.js';
 import { PASS_PCT } from '../config.js';
 import { el } from '../dom.js';
 import { store } from '../store.js';
@@ -33,7 +34,8 @@ export async function render(container, [id]) {
           el('span', { class: 'muted' }, q ? preview(q) : '(question missing from bank)'),
           el('span', { class: 'chev' }, expanded ? '▾' : '▸')),
         expanded && q ? el('div', { class: 'result-detail' },
-          renderQuestionCard({ question: q, bankId: store.bankId, picked: it.picked, locked: true, reveal: q.answer }),
+          renderQuestionCard({ question: q, bankId: store.bankId, picked: it.picked, locked: true, reveal: q.answer,
+            headExtras: renderMarkToggle({ number: it.number, onChange: draw }) }),
           renderFeedback({ question: q, picked: it.picked })) : null);
     });
 
