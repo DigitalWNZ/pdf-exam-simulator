@@ -1,6 +1,7 @@
 import { mountDrill } from '../components/drill.js';
+import { renderMarkToggle } from '../components/markToggle.js';
 import { el } from '../dom.js';
-import { checkPractice, setPracticeIndex } from '../progress.js';
+import { checkPractice, isMarked, setMarked, setPracticeIndex } from '../progress.js';
 import { store, update } from '../store.js';
 
 export async function render(container) {
@@ -10,8 +11,9 @@ export async function render(container) {
     .filter((q) => q.number >= run.range[0] && q.number <= run.range[1])
     .sort((a, b) => a.number - b.number);
   if (!list.length) { location.hash = '#/practice/setup'; return; }
+  let drill;
 
-  const drill = mountDrill(container, {
+  drill = mountDrill(container, {
     bankId: store.bankId,
     list: () => list,
     index: () => store.progress.practice.index,
@@ -19,6 +21,8 @@ export async function render(container) {
     checked: (number) => store.progress.practice.picks[String(number)] ?? null,
     onCheck: (number, picked, correct) => update((p) => checkPractice(p, number, picked, correct, new Date().toISOString())),
     label: (s) => `Q ${s.index + 1} of ${s.list.length} · range ${run.range[0]}–${run.range[1]}`,
+    headExtras: (s) => renderMarkToggle({ number: s.q.number, onChange: () => drill.draw() }),
+    onMark: (s) => { update((p) => setMarked(p, s.q.number, !isMarked(p, s.q.number))); drill.draw(); },
     empty: () => el('section', { class: 'card' }, 'No questions in this range.'),
   });
   return drill.unbind;

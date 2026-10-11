@@ -17,6 +17,8 @@ import { renderQuestionCard, togglePick } from './questionCard.js';
  *   label(s)                    → progress-label text
  *   toolbarExtras(s)            → node(s) placed before "Home" (optional)
  *   actionExtras(s)             → node(s) appended to the action row (optional)
+ *   headExtras(s)               → node placed at the right of the question-card header (optional)
+ *   onMark(s)                   M key pressed while a question is shown; the handler redraws (optional)
  *   empty()                     → node shown when list() is empty
  *
  * Returns { unbind, draw, resetDraft }.
@@ -68,7 +70,8 @@ export function mountDrill(container, opts) {
         opts.toolbarExtras ? opts.toolbarExtras(s) : null,
         el('a', { class: 'btn link', href: '#/' }, 'Home')),
       renderQuestionCard({ question: s.q, bankId: opts.bankId, picked: s.picked, locked: s.locked,
-        reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); } }),
+        reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); },
+        headExtras: opts.headExtras ? opts.headExtras(s) : null }),
       s.locked ? renderFeedback({ question: s.q, picked: s.picked }) : null,
       el('div', { class: 'actions' },
         el('button', { class: 'btn', disabled: s.index === 0, onClick: () => go(s.index - 1) }, '← Prev'),
@@ -76,7 +79,7 @@ export function mountDrill(container, opts) {
           ? el('button', { class: 'btn primary', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Next →')
           : el('button', { class: 'btn primary', disabled: !s.canCheck, onClick: check }, 'Check'),
         s.locked ? null : el('button', { class: 'btn', disabled: s.index === s.list.length - 1, onClick: () => go(s.index + 1) }, 'Skip →'),
-        el('span', { class: 'muted' }, 'Keys: 1-9 / A-F pick · Enter check/next · ← →'),
+        el('span', { class: 'muted' }, `Keys: 1-9 / A-F pick · Enter check/next · ← →${opts.onMark ? ' · M mark' : ''}`),
         opts.actionExtras ? opts.actionExtras(s) : null),
     ].filter(Boolean));
   };
@@ -92,6 +95,7 @@ export function mountDrill(container, opts) {
     onEnter: () => { const s = state(); if (!s.q) return; if (s.locked) go(s.index + 1); else check(); },
     onPrev: () => { const s = state(); if (s.q) go(s.index - 1); },
     onNext: () => { const s = state(); if (s.q) go(s.index + 1); },
+    onMark: opts.onMark ? () => { const s = state(); if (s.q) opts.onMark(s); } : undefined,
   });
   return { unbind, draw, resetDraft: () => { draft = []; } };
 }

@@ -1,6 +1,7 @@
 import { mountDrill } from '../components/drill.js';
+import { renderMarkToggle } from '../components/markToggle.js';
 import { el } from '../dom.js';
-import { clearMistakes, mistakePool, recordAttempt, removeFromMistakes } from '../progress.js';
+import { clearMistakes, isMarked, mistakePool, recordAttempt, removeFromMistakes, setMarked } from '../progress.js';
 import { store, update } from '../store.js';
 
 export async function render(container) {
@@ -30,6 +31,8 @@ export async function render(container) {
       update((p) => recordAttempt(p, number, picked, correct, new Date().toISOString()));
     },
     label: (s) => `${s.list.length} mistake${s.list.length === 1 ? '' : 's'} · ${s.index + 1} of ${s.list.length}`,
+    headExtras: (s) => renderMarkToggle({ number: s.q.number, onChange: () => drill.draw() }),
+    onMark: (s) => { update((p) => setMarked(p, s.q.number, !isMarked(p, s.q.number))); drill.draw(); },
     toolbarExtras: (s) => el('button', { class: 'btn danger', onClick: () => clearAll(s) }, 'Clear all'),
     actionExtras: (s) => [el('span', { class: 'spacer' }), el('button', { class: 'btn', onClick: () => remove(s) }, 'Remove from mistakes')],
     empty: () => el('section', { class: 'card' },
