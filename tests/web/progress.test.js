@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  checkPractice, clearMistakes, discardExam, emptyProgress, finishExam, mistakePool, overallStats,
-  recordAttempt, removeFromMistakes, setExamCurrent, setExamPick, setPracticeIndex, startExam,
-  startPractice, toggleExamFlag,
+  checkPractice, clearMarked, clearMistakes, discardExam, emptyProgress, finishExam, isMarked, markedPool,
+  mistakePool, overallStats, recordAttempt, removeFromMistakes, setExamCurrent, setExamPick, setMarked,
+  setPracticeIndex, startExam, startPractice, toggleExamFlag,
 } from '../../web/js/progress.js';
 
 const T = '2026-01-01T10:00:00.000Z';
@@ -18,7 +18,7 @@ test('recordAttempt accumulates stats and a wrong answer enters the mistakes poo
   let p = emptyProgress('demo');
   p = recordAttempt(p, 17, ['B'], false, T);
   assert.deepEqual(p.questions['17'], {
-    attempts: 1, correct: 0, wrong: 1, last_result: 'wrong', last_answer: ['B'], last_at: T, in_mistakes: true,
+    attempts: 1, correct: 0, wrong: 1, last_result: 'wrong', last_answer: ['B'], last_at: T, in_mistakes: true, marked: false,
   });
   p = recordAttempt(p, 17, ['C'], true, T);
   assert.equal(p.questions['17'].attempts, 2);
@@ -124,4 +124,66 @@ test('practice lifecycle', () => {
   assert.deepEqual(p.practice.picks, {}, 'a new run resets picks');
   assert.equal(p.questions['12'].attempts, 1, 'but stats persist');
   assert.equal(setPracticeIndex(emptyProgress('x'), 3).practice, null);
+});
+
+// ---- future-review list ----
+test('setMarked on an unattempted question creates an entry without counting an attempt', () => {
+  let p = emptyProgress('demo');
+  p = setMarked(p, 42, true);
+  assert.deepEqual(p.questions['42'], {
+    attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: true,
+  });
+  assert.equal(isMarked(p, 42), true);
+  assert.deepEqual(overallStats(p), { attempted: 0, attempts: 0, correct: 0, accuracy: null }, 'marking is not an attempt');
+  assert.deepEqual(mistakePool(p), [], 'marking does not touch the mistakes pool');
+});
+
+test('setMarked is a no-op (same object) when the flag already has that value', () => {
+  const empty = emptyProgress('demo');
+  assert.equal(setMarked(empty, 7, false), empty, 'unmarking a question with no entry');
+  const once = setMarked(empty, 7, true);
+  assert.equal(setMarked(once, 7, true), once, 'marking twice');
+  assert.deepEqual(empty.questions, {}, 'input is not mutated');
+});
+
+test('marked pool: sorted numbers, per-question removal, clear all; stats and mistakes are kept', () => {
+  let p = emptyProgress('demo');
+  p = setMarked(p, 30, true);
+  p = setMarked(p, 4, true);
+  p = recordAttempt(p, 9, ['A'], false, T);
+  assert.deepEqual(markedPool(p), [4, 30]);
+  p = setMarked(p, 30, false);
+  assert.deepEqual(markedPool(p), [4]);
+  assert.equal(p.questions['30'].marked, false);
+  p = recordAttempt(p, 4, ['A'], false, T);
+  p = clearMarked(p);
+  assert.deepEqual(markedPool(p), []);
+  assert.equal(p.questions['4'].wrong, 1, 'stats are kept');
+  assert.deepEqual(mistakePool(p), [4, 9], 'mistakes pool is kept');
+});
+
+test('marked and in_mistakes are independent', () => {
+  let p = emptyProgress('demo');
+  p = setMarked(p, 17, true);
+  p = recordAttempt(p, 17, ['B'], false, T);
+  assert.equal(p.questions['17'].marked, true, 'recordAttempt preserves marked');
+  p = removeFromMistakes(p, 17);
+  assert.equal(p.questions['17'].marked, true, 'removeFromMistakes preserves marked');
+  p = recordAttempt(p, 17, ['B'], false, T);
+  p = clearMistakes(p);
+  assert.equal(p.questions['17'].marked, true, 'clearMistakes preserves marked');
+  p = setMarked(p, 17, false);
+  assert.equal(p.questions['17'].attempts, 2, 'setMarked preserves counters');
+  assert.equal(p.questions['17'].in_mistakes, false, 'setMarked preserves in_mistakes');
+});
+
+test('isMarked is false for unknown numbers and for legacy entries without the key', () => {
+  const p = emptyProgress('demo');
+  assert.equal(isMarked(p, 1), false);
+  const legacy = { ...p, questions: { 5: { attempts: 1, correct: 1, wrong: 0, last_result: 'correct', last_answer: ['A'], last_at: T, in_mistakes: false } } };
+  assert.equal(isMarked(legacy, 5), false);
+  assert.deepEqual(markedPool(legacy), []);
+  assert.equal(setMarked(legacy, 5, false), legacy, 'unmarking a legacy entry is a no-op');
+  assert.equal(setMarked(legacy, 5, true).questions['5'].marked, true);
+  assert.equal(setMarked(legacy, 5, true).questions['5'].attempts, 1, 'legacy counters are kept');
 });

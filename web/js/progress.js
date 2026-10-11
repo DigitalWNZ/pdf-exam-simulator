@@ -5,7 +5,7 @@ export function emptyProgress(bankId) {
   return { version: 1, bank_id: bankId, updated_at: null, questions: {}, exams: [], active_exam: null, practice: null };
 }
 
-const EMPTY_STAT = { attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false };
+const EMPTY_STAT = { attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: false };
 
 export function recordAttempt(p, number, picked, correct, atIso) {
   const key = String(number);
@@ -39,6 +39,33 @@ export function clearMistakes(p) {
 export function mistakePool(p) {
   return Object.entries(p.questions)
     .filter(([, v]) => v.in_mistakes)
+    .map(([k]) => Number(k))
+    .sort((a, b) => a - b);
+}
+
+// ---- future-review list ("Mark for future review") ----
+// `marked` is set or cleared only here; recordAttempt/mistake reducers spread the stat and preserve it.
+export function isMarked(p, number) {
+  return p.questions[String(number)]?.marked === true;
+}
+
+export function setMarked(p, number, marked) {
+  const next = Boolean(marked);
+  if (isMarked(p, number) === next) return p;
+  const key = String(number);
+  const prev = p.questions[key] || EMPTY_STAT;
+  return { ...p, questions: { ...p.questions, [key]: { ...prev, marked: next } } };
+}
+
+export function clearMarked(p) {
+  const questions = {};
+  for (const [k, v] of Object.entries(p.questions)) questions[k] = v.marked ? { ...v, marked: false } : v;
+  return { ...p, questions };
+}
+
+export function markedPool(p) {
+  return Object.entries(p.questions)
+    .filter(([, v]) => v.marked === true)
     .map(([k]) => Number(k))
     .sort((a, b) => a - b);
 }
