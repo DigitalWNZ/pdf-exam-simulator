@@ -44,7 +44,7 @@ npm test                     # pure web logic via node --test
 ## Manual smoke checklist
 
 1. `uv run parse-pdf … --strict` → `errors: none`, 349 questions.
-2. `uv run serve` → Home shows the bank, stats and three mode cards.
+2. `uv run serve` → Home shows the bank, stats and four mode cards.
 3. Exam: 5 questions / 2 minutes; answer one multi-select (e.g. a "Choose three") and one image question; reload mid-exam (state intact); let the timer expire → results show FAIL, auto-submitted, wrong rows expandable in PDF order.
 4. Practice: range 1–12, Check gives instant feedback; Q9 shows an inline image; Q10 caps picks at 3.
 5. Review: pool lists the exam's wrong/unanswered questions; "Remove from mistakes" drops one; "Clear all" empties it.
