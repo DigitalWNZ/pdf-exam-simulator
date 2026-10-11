@@ -1,7 +1,7 @@
 import * as api from '../api.js';
 import { PASS_PCT } from '../config.js';
 import { el } from '../dom.js';
-import { mistakePool, overallStats } from '../progress.js';
+import { markedPool, mistakePool, overallStats } from '../progress.js';
 import { flush, loadBank, store } from '../store.js';
 import { formatClock } from '../timer.js';
 
@@ -13,6 +13,7 @@ export async function render(container) {
   const p = store.progress;
   const stats = overallStats(p);
   const pool = mistakePool(p);
+  const marked = markedPool(p);
   const total = store.bank.questions.length;
 
   const select = el('select', { class: 'bank-select', onChange: async (e) => {
@@ -43,7 +44,8 @@ export async function render(container) {
     el('section', { class: 'mode-cards' },
       card('#/exam/setup', 'Exam', 'Timed mock exam · default 50 questions / 120 min · shuffled options · results at the end'),
       card('#/practice/setup', 'Practice', 'Work through a range in order · instant feedback after each Check'),
-      card('#/review', 'Review mistakes', pool.length ? `${pool.length} question${pool.length === 1 ? '' : 's'} to re-drill` : 'No mistakes recorded yet')),
+      card('#/review', 'Review mistakes', pool.length ? `${pool.length} question${pool.length === 1 ? '' : 's'} to re-drill` : 'No mistakes recorded yet'),
+      card('#/marked', 'Future review', marked.length ? `${marked.length} question${marked.length === 1 ? '' : 's'} marked` : 'Nothing marked yet')),
     el('section', { class: 'card' }, el('h2', {}, 'Exam history'),
       history.length
         ? el('table', { class: 'history' },

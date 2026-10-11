@@ -8,11 +8,12 @@ import * as examResult from './views/examResult.js';
 import * as practiceSetup from './views/practiceSetup.js';
 import * as practice from './views/practice.js';
 import * as review from './views/review.js';
+import * as marked from './views/marked.js';
 
 // Longest prefixes first so 'exam/result/<id>' is not captured by 'exam'.
 const routes = [
   ['exam/result', examResult], ['exam/setup', examSetup], ['exam', exam],
-  ['practice/setup', practiceSetup], ['practice', practice], ['review', review], ['', home],
+  ['practice/setup', practiceSetup], ['practice', practice], ['review', review], ['marked', marked], ['', home],
 ];
 let cleanup = null;
 
