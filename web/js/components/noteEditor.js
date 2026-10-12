@@ -30,6 +30,7 @@ export function renderNoteEditor({ number, onChange = () => {} }) {
     class: 'note-input', rows: 3, placeholder: 'Your note for this question…',
     onInput: () => { draft.text = textarea.value; },
     onKeydown: (e) => {
+      if (e.isComposing) return;
       if (e.key === 'Escape') { e.preventDefault(); close(); }
       else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
     },

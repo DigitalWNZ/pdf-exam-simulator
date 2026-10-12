@@ -88,7 +88,7 @@ table.history { width: 100%; border-collapse: collapse; font-size: 14px; }
 .result-detail { padding: 0 12px 12px; }
 .toggle { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
 .note { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 14px; }
-.note-text { white-space: pre-wrap; margin: 0 0 6px; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 6px; }
 .note-input { display: block; width: 100%; min-height: 72px; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
 .note .actions { margin: 8px 0 0; }
 #toast-root { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 50; }
