@@ -15,7 +15,7 @@ function displayLetters(question, order) {
  * order: original letters in display order (null = PDF order). picked: original letters.
  * reveal: key letters to highlight after checking (null while answering).
  */
-export function renderQuestionCard({ question, bankId, order = null, picked = [], locked = false, reveal = null, onPick = () => {}, headExtras = null }) {
+export function renderQuestionCard({ question, bankId, order = null, picked = [], locked = false, reveal = null, onPick = () => {}, headExtras = null, footExtras = null }) {
   const letters = displayLetters(question, order);
   const byLetter = new Map(question.options.map((o) => [o.letter, o]));
   const multi = question.select_count > 1;
@@ -51,7 +51,8 @@ export function renderQuestionCard({ question, bankId, order = null, picked = []
       multi ? el('span', { class: 'hint' }, `Choose ${question.select_count}`) : null,
       headExtras ? [el('span', { class: 'spacer' }), headExtras] : null),
     el('div', { class: 'stem' }, renderBlocks(question.stem, bankId)),
-    el('div', { class: 'options' }, rows));
+    el('div', { class: 'options' }, rows),
+    footExtras);
 }
 
 /** Keyboard toggle of the option at display index i. Returns the next picked[] or null if not allowed. */
