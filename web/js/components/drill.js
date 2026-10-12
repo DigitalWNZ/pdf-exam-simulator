@@ -18,6 +18,7 @@ import { renderQuestionCard, togglePick } from './questionCard.js';
  *   toolbarExtras(s)            → node(s) placed before "Home" (optional)
  *   actionExtras(s)             → node(s) appended to the action row (optional)
  *   headExtras(s)               → node placed at the right of the question-card header (optional)
+ *   footExtras(s)               → node appended at the bottom of the question card (optional)
  *   onMark(s)                   M key pressed while a question is shown; the handler redraws (optional)
  *   empty()                     → node shown when list() is empty
  *
@@ -71,7 +72,8 @@ export function mountDrill(container, opts) {
         el('a', { class: 'btn link', href: '#/' }, 'Home')),
       renderQuestionCard({ question: s.q, bankId: opts.bankId, picked: s.picked, locked: s.locked,
         reveal: s.locked ? s.q.answer : null, onPick: (next) => { draft = next; draw(); },
-        headExtras: opts.headExtras ? opts.headExtras(s) : null }),
+        headExtras: opts.headExtras ? opts.headExtras(s) : null,
+        footExtras: opts.footExtras ? opts.footExtras(s) : null }),
       s.locked ? renderFeedback({ question: s.q, picked: s.picked }) : null,
       el('div', { class: 'actions' },
         el('button', { class: 'btn', disabled: s.index === 0, onClick: () => go(s.index - 1) }, '← Prev'),

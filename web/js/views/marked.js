@@ -1,5 +1,6 @@
 import { mountDrill } from '../components/drill.js';
 import { renderMarkToggle } from '../components/markToggle.js';
+import { renderNoteEditor } from '../components/noteEditor.js';
 import { el } from '../dom.js';
 import { clearMarked, markedPool, recordAttempt, setMarked } from '../progress.js';
 import { store, update } from '../store.js';
@@ -37,6 +38,7 @@ export async function render(container) {
     label: (s) => `${s.list.length} marked · ${s.index + 1} of ${s.list.length}`,
     headExtras: (s) => renderMarkToggle({ number: s.q.number, onChange: dropCurrent }),   // box is always ticked here; unticking = remove
     onMark: remove,
+    footExtras: (s) => renderNoteEditor({ number: s.q.number, onChange: () => drill.draw() }),
     toolbarExtras: (s) => el('button', { class: 'btn danger', onClick: () => clearAll(s) }, 'Clear all'),
     actionExtras: (s) => [el('span', { class: 'spacer' }), el('button', { class: 'btn', onClick: () => remove(s) }, 'Remove from list')],
     empty: () => el('section', { class: 'card' },

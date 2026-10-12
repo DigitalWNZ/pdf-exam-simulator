@@ -1,5 +1,6 @@
 import { mountDrill } from '../components/drill.js';
 import { renderMarkToggle } from '../components/markToggle.js';
+import { renderNoteEditor } from '../components/noteEditor.js';
 import { el } from '../dom.js';
 import { checkPractice, isMarked, setMarked, setPracticeIndex } from '../progress.js';
 import { store, update } from '../store.js';
@@ -23,6 +24,7 @@ export async function render(container) {
     label: (s) => `Q ${s.index + 1} of ${s.list.length} · range ${run.range[0]}–${run.range[1]}`,
     headExtras: (s) => renderMarkToggle({ number: s.q.number, onChange: () => drill.draw() }),
     onMark: (s) => { update((p) => setMarked(p, s.q.number, !isMarked(p, s.q.number))); drill.draw(); },
+    footExtras: (s) => renderNoteEditor({ number: s.q.number, onChange: () => drill.draw() }),
     empty: () => el('section', { class: 'card' }, 'No questions in this range.'),
   });
   return drill.unbind;
