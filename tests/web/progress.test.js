@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  checkPractice, clearMarked, clearMistakes, discardExam, emptyProgress, finishExam, isMarked, markedPool,
-  mistakePool, overallStats, recordAttempt, removeFromMistakes, setExamCurrent, setExamPick, setMarked,
-  setPracticeIndex, startExam, startPractice, toggleExamFlag,
+  checkPractice, clearMarked, clearMistakes, discardExam, emptyProgress, finishExam, getComment, isMarked,
+  markedPool, mistakePool, overallStats, recordAttempt, removeFromMistakes, setComment, setExamCurrent,
+  setExamPick, setMarked, setPracticeIndex, startExam, startPractice, toggleExamFlag,
 } from '../../web/js/progress.js';
 
 const T = '2026-01-01T10:00:00.000Z';
@@ -18,7 +18,7 @@ test('recordAttempt accumulates stats and a wrong answer enters the mistakes poo
   let p = emptyProgress('demo');
   p = recordAttempt(p, 17, ['B'], false, T);
   assert.deepEqual(p.questions['17'], {
-    attempts: 1, correct: 0, wrong: 1, last_result: 'wrong', last_answer: ['B'], last_at: T, in_mistakes: true, marked: false,
+    attempts: 1, correct: 0, wrong: 1, last_result: 'wrong', last_answer: ['B'], last_at: T, in_mistakes: true, marked: false, comment: '',
   });
   p = recordAttempt(p, 17, ['C'], true, T);
   assert.equal(p.questions['17'].attempts, 2);
@@ -131,7 +131,7 @@ test('setMarked on an unattempted question creates an entry without counting an 
   let p = emptyProgress('demo');
   p = setMarked(p, 42, true);
   assert.deepEqual(p.questions['42'], {
-    attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: true,
+    attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: true, comment: '',
   });
   assert.equal(isMarked(p, 42), true);
   assert.deepEqual(overallStats(p), { attempted: 0, attempts: 0, correct: 0, accuracy: null }, 'marking is not an attempt');
@@ -187,3 +187,74 @@ test('isMarked is false for unknown numbers and for legacy entries without the k
   assert.equal(setMarked(legacy, 5, true).questions['5'].marked, true);
   assert.equal(setMarked(legacy, 5, true).questions['5'].attempts, 1, 'legacy counters are kept');
 });
+
+// ---- question notes ----
+test('getComment is empty for unknown, legacy and non-string entries; setComment creates an entry and marks it', () => {
+  let p = emptyProgress('demo');
+  assert.equal(getComment(p, 1), '');
+  const legacy = { ...p, questions: {
+    5: { attempts: 1, correct: 1, wrong: 0, last_result: 'correct', last_answer: ['A'], last_at: T, in_mistakes: false },
+    6: { attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: false, comment: null },
+  } };
+  assert.equal(getComment(legacy, 5), '', 'legacy entry without the key');
+  assert.equal(getComment(legacy, 6), '', 'non-string value');
+  p = setComment(p, 42, 'x');
+  assert.deepEqual(p.questions['42'], {
+    attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: true, comment: 'x',
+  });
+  assert.equal(getComment(p, 42), 'x');
+  assert.deepEqual(markedPool(p), [42], 'adding a note marks the question');
+  assert.deepEqual(overallStats(p), { attempted: 0, attempts: 0, correct: 0, accuracy: null }, 'a note is not an attempt');
+  assert.deepEqual(mistakePool(p), []);
+});
+
+test('setComment trims and is a no-op (same object) when the text is unchanged', () => {
+  const empty = emptyProgress('demo');
+  assert.equal(setComment(empty, 7, ''), empty, 'deleting a note that does not exist');
+  assert.equal(setComment(empty, 7, '   '), empty, 'whitespace-only is an empty note');
+  const once = setComment(empty, 7, '  hi  ');
+  assert.equal(getComment(once, 7), 'hi');
+  assert.equal(setComment(once, 7, 'hi'), once, 'same text again');
+  assert.equal(setComment(once, 7, ' hi '), once, 'same text after trimming');
+  assert.deepEqual(empty.questions, {}, 'input is not mutated');
+  assert.equal(getComment(setComment(once, 7, undefined), 7), '', 'undefined clears the note');
+});
+
+test('a note marks the question only when it is first added', () => {
+  let p = setComment(emptyProgress('demo'), 17, 'first');
+  assert.equal(isMarked(p, 17), true, 'add → marked');
+  p = setMarked(p, 17, false);
+  assert.equal(getComment(p, 17), 'first', 'unmarking keeps the note');
+  p = setComment(p, 17, 'edited');
+  assert.equal(isMarked(p, 17), false, 'edit → still unmarked');
+  p = setComment(p, 17, '');
+  assert.equal(getComment(p, 17), '');
+  assert.equal(isMarked(p, 17), false, 'delete → still unmarked');
+  p = setComment(p, 17, 'again');
+  assert.equal(isMarked(p, 17), true, 'adding again is a new add → marked');
+  let q = setMarked(emptyProgress('demo'), 3, true);
+  q = setComment(q, 3, 'note on a marked question');
+  assert.equal(isMarked(q, 3), true);
+  assert.equal(getComment(q, 3), 'note on a marked question');
+});
+
+test('comment is independent of attempts, marks and the mistakes pool', () => {
+  let p = setComment(emptyProgress('demo'), 9, 'keep me');
+  p = recordAttempt(p, 9, ['B'], false, T);
+  assert.equal(getComment(p, 9), 'keep me', 'recordAttempt preserves the note');
+  p = removeFromMistakes(p, 9);
+  p = recordAttempt(p, 9, ['B'], false, T);
+  p = clearMistakes(p);
+  assert.equal(getComment(p, 9), 'keep me', 'mistake reducers preserve the note');
+  p = clearMarked(p);
+  assert.equal(getComment(p, 9), 'keep me', 'clearMarked preserves the note');
+  p = setMarked(p, 9, true);
+  p = setMarked(p, 9, false);
+  assert.equal(getComment(p, 9), 'keep me', 'setMarked preserves the note');
+  p = recordAttempt(p, 9, ['B'], false, T);
+  p = setComment(p, 9, 'edited');
+  assert.equal(p.questions['9'].attempts, 3, 'setComment preserves counters');
+  assert.equal(p.questions['9'].in_mistakes, true, 'setComment preserves in_mistakes');
+  assert.equal(isMarked(p, 9), false, 'editing does not re-mark');
+});
+

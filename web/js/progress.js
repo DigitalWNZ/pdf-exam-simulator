@@ -5,7 +5,7 @@ export function emptyProgress(bankId) {
   return { version: 1, bank_id: bankId, updated_at: null, questions: {}, exams: [], active_exam: null, practice: null };
 }
 
-const EMPTY_STAT = { attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: false };
+const EMPTY_STAT = { attempts: 0, correct: 0, wrong: 0, last_result: null, last_answer: null, last_at: null, in_mistakes: false, marked: false, comment: '' };
 
 export function recordAttempt(p, number, picked, correct, atIso) {
   const key = String(number);
@@ -68,6 +68,24 @@ export function markedPool(p) {
     .filter(([, v]) => v.marked === true)
     .map(([k]) => Number(k))
     .sort((a, b) => a - b);
+}
+
+// ---- question notes ("Add note") ----
+// `comment` is written only here. Adding a note (empty → non-empty) also marks the question for future
+// review; editing or deleting a note never changes `marked`. Other reducers spread the stat and keep it.
+export function getComment(p, number) {
+  const c = p.questions[String(number)]?.comment;
+  return typeof c === 'string' ? c : '';
+}
+
+export function setComment(p, number, text) {
+  const next = String(text ?? '').trim();
+  const prevText = getComment(p, number);
+  if (prevText === next) return p;
+  const key = String(number);
+  const prev = p.questions[key] || EMPTY_STAT;
+  const marked = prev.marked === true || (prevText === '' && next !== '');
+  return { ...p, questions: { ...p.questions, [key]: { ...prev, comment: next, marked } } };
 }
 
 export function overallStats(p) {
