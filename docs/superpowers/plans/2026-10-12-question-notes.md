@@ -228,24 +228,25 @@ import { store, update } from '../store.js';
 /**
  * Per-question note ("Add note") rendered at the bottom of a question card.
  * Closed: the saved note (if any) + "Edit note" / "✎ Add note". Open: textarea + Save / Cancel / Delete.
- * Open editors and their unsaved text live in `drafts` (module state keyed by question number), so a
+ * Open editors and their unsaved text live in `drafts` (module state keyed by bank id + question number), so a
  * host redraw re-renders the editor with the draft intact and typing never triggers a redraw.
  * Saves go through store.update(); the host is asked to redraw via onChange(). Never redraws itself.
  */
 const drafts = new Map();                                   // number → { text, focus }
 
 export function renderNoteEditor({ number, onChange = () => {} }) {
+  const key = `${store.bankId}:${number}`;
   const saved = getComment(store.progress, number);
-  const draft = drafts.get(number);
+  const draft = drafts.get(key);
 
   if (!draft) {
-    const open = () => { drafts.set(number, { text: saved, focus: true }); onChange(); };
+    const open = () => { drafts.set(key, { text: saved, focus: true }); onChange(); };
     return el('div', { class: 'note' },
       saved ? el('div', { class: 'note-text' }, saved) : null,
       el('button', { class: 'btn link', onClick: open }, saved ? 'Edit note' : '✎ Add note'));
   }
 
-  const close = () => { drafts.delete(number); onChange(); };
+  const close = () => { drafts.delete(key); onChange(); };
   const save = () => { update((p) => setComment(p, number, textarea.value)); close(); };
   const remove = () => { update((p) => setComment(p, number, '')); close(); };
   const textarea = el('textarea', {
