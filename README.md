@@ -22,6 +22,7 @@ Answer key: top community vote; ties broken by the PDF's `Correct Answer`; quest
 
 - Mislabeled options are repaired generically: an option printed with a wrong letter (this PDF prints Q224's third option as `G.`) is renumbered when the question's `Correct Answer` or votes corroborate it, and the report lists it under `relabeled option letters`.
 - On this machine `uv` lives in pyenv's Python 3.12.6, which `.python-version` pins — run `uv` commands from the repo root (elsewhere pyenv selects a Python without `uv`).
+- Bilingual (中文 + English) Markdown-export PDFs (`问题 N / 题⽬ / 选项 / 正确答案：… / 解析：…`, e.g. `pmle.pdf`) are auto-detected (or force with `--format bilingual`). Only the English stem/options are kept, the 解析 explanation is ignored, and the key comes from `正确答案` (matched against option text, so multi-answer keys like `D. … E. …` work).
 
 ## 2. Run the app
 

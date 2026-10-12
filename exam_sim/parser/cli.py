@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .assemble import build_question
+from .bilingual import is_bilingual, parse_bilingual, read_lines
 from .blocks import parse_questions
 from .extract import extract_items
 from .images import ImageWriter
@@ -21,12 +22,18 @@ def slugify(name: str) -> str:
     return slug[:64] or "bank"
 
 
-def parse_pdf(pdf_path: Path, out_dir: Path, bank_id: str, title: str) -> tuple[dict, Report]:
+def parse_pdf(pdf_path: Path, out_dir: Path, bank_id: str, title: str,
+              fmt: str = "auto") -> tuple[dict, Report]:
     bank_dir = out_dir / bank_id
     bank_dir.mkdir(parents=True, exist_ok=True)
     writer = ImageWriter(bank_dir)
     writer.reset_dir()
-    raws = parse_questions(extract_items(pdf_path))
+    if fmt == "auto":
+        fmt = "bilingual" if is_bilingual(read_lines(pdf_path)) else "examtopics"
+    if fmt == "bilingual":
+        raws = parse_bilingual(read_lines(pdf_path))
+    else:
+        raws = parse_questions(extract_items(pdf_path))
     questions = [build_question(raw, writer.writer_for(raw.number)) for raw in raws]
     meta = BankMeta(id=bank_id, title=title, source_pdf=pdf_path.name,
                     parsed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -43,12 +50,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--title", help="bank title (default: PDF file name)")
     ap.add_argument("--out", type=Path, default=Path("banks"), help="output root (default: banks/)")
     ap.add_argument("--strict", action="store_true", help="exit 1 if the report contains errors")
+    ap.add_argument("--format", choices=("auto", "examtopics", "bilingual"), default="auto",
+                    help="PDF layout (default: auto-detect)")
     args = ap.parse_args(argv)
     if not args.pdf.is_file():
         ap.error(f"PDF not found: {args.pdf}")
     bank_id = args.bank_id or slugify(args.pdf.stem)
     title = args.title or args.pdf.stem
-    doc, report = parse_pdf(args.pdf, args.out, bank_id, title)
+    doc, report = parse_pdf(args.pdf, args.out, bank_id, title, args.format)
     print(f"wrote {args.out / bank_id / 'questions.json'} ({doc['bank']['question_count']} questions)")
     print(format_report(report))
     if args.strict and report.errors():
