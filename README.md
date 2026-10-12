@@ -32,6 +32,8 @@ uv run serve --port 8010 --no-browser
 
 Progress is stored per bank in `data/progress/<bank-id>.json` (plain JSON, atomic writes — back it up or edit it by hand). `source/`, `banks/` and `data/` are gitignored.
 
+Notes: every question card outside a running exam has an *Add note* editor (Save / Cancel / Delete; `Esc` cancels, `⌘/Ctrl+Enter` saves). Adding a note marks the question for future review; removing it from that list keeps the note. Notes are stored in the progress file as `"comment"`.
+
 Keyboard: `1–9` / `A–F` pick an option · `Enter` check / next · `←` `→` previous / next · `F` flag (exam) · `M` mark for future review (practice / review).
 
 ## Tests
@@ -53,3 +55,5 @@ npm test                     # pure web logic via node --test
 8. Open a past exam result, expand a question, tick the box → it appears in Future review.
 9. Reload the page → still marked; `data/progress/<bank>.json` contains `"marked": true`.
 10. Future review with 2+ questions: "Clear all" → confirm → empty state; `M` toggles the mark in Practice.
+11. Practice: *Add note* on Q4 → type → Save → note shown under the options and the question is now ticked; Home → Future review shows it with the note.
+12. Future review: *Remove from list* on Q4 → Practice Q4 still shows the note, unticked; *Delete* removes the note; reload → state persists; `data/progress/<bank>.json` contains `"comment"`.

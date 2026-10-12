@@ -26,6 +26,8 @@ Let the user tick a **"Mark for future review"** checkbox on any question and la
 
 Implementer picks (cheap to change): screen name **Future review**; route `#/marked`; keyboard shortcut `M`; button text **Remove from list**; Home mode-card grid becomes 2×2.
 
+Related: adding a note to a question (see `2026-10-12-question-notes-design.md`) also marks it; removing a question from this list never deletes its note.
+
 ## 3. Data model (`web/js/progress.js`)
 
 The per-question stat gains one boolean:
